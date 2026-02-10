@@ -1,16 +1,10 @@
 interface Env {
-    SEB: SendEmailClient;
     EMAIL_QUEUE: Queue<EmailQueueMessage>;
     SENDER_ADDRESS: string;
     SENDER_NAME: string;
     RECIPIENT_ADDRESS: string;
     CONTACT_PATH: string;
-    BASE_DELAY_SECONDS: number;
     TURNSTILE_SECRET_KEY: string;
-}
-
-interface SendEmailClient {
-    send(message: EmailMessage): Promise<void>;
 }
 
 interface MailboxAddress {
@@ -45,7 +39,7 @@ interface TurnstileResponse {
 
 export default {
     async fetch(request: Request, env: Env) {
-        if (request.method == "POST" && request.url.endsWith("/api/contact")) {
+        if (request.method == "POST" && request.url.endsWith(env.CONTACT_PATH)) {
             const formData = await request.formData();
             const name = formData.get("name") as string;
             const email = formData.get("email") as string;
