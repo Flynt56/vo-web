@@ -1,28 +1,10 @@
 interface Env {
-    EMAIL_QUEUE: Queue<EmailQueueMessage>;
     SENDER_ADDRESS: string;
     SENDER_NAME: string;
     RECIPIENT_ADDRESS: string;
     CONTACT_PATH: string;
     TURNSTILE_SECRET_KEY: string;
-}
-
-interface MailboxAddress {
-    address: string;
-    name?: string;
-}
-
-interface EmailEnvelope {
-    sender: MailboxAddress;
-    message: string;
-}
-
-interface EmailQueueMessage {
-    type: 'send_contact_email';
-    data: EmailEnvelope;
-    sender: MailboxAddress;
-    recipient: MailboxAddress;
-    timestamp: number;
+    CONTACT_HANDLER: Fetcher;
 }
 
 interface TurnstileResponse {
@@ -41,6 +23,7 @@ export default {
     async fetch(request: Request, env: Env) {
         if (request.method == "POST" && request.url.endsWith(env.CONTACT_PATH)) {
             const formData = await request.formData();
+
             const name = formData.get("name") as string;
             const email = formData.get("email") as string;
             const message = formData.get("message") as string;
@@ -86,19 +69,18 @@ export default {
                 return new Response('Validation error', {status: 400});
             }
 
-            const emailEnvelope: EmailEnvelope = {
-                sender: {name, address: email},
-                message: message
-            };
-
             try {
-                await env.EMAIL_QUEUE.send({
-                    type: 'send_contact_email',
-                    data: emailEnvelope,
-                    sender: {name: env.SENDER_NAME, address: env.SENDER_ADDRESS},
-                    recipient: {address: env.RECIPIENT_ADDRESS},
-                    timestamp: Date.now()
-                } as EmailQueueMessage);
+                const fd = new URLSearchParams({
+                    'site_id': 'vo',
+                    'user_name': name,
+                    'user_address': email,
+                    'sender_address': env.SENDER_ADDRESS,
+                    'sender_name': env.SENDER_NAME,
+                    'recipient_address': env.RECIPIENT_ADDRESS,
+                    message: message
+                });
+
+                await env.CONTACT_HANDLER.fetch('https://CONTACT_HANDLER/api/contact', {method: 'post', body: fd});
 
                 console.log(`Email queued.\nFor: ${email}\nFrom: ${name}`);
                 return new Response("Email sent successfully.", {status: 200});
