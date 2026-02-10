@@ -1,6 +1,3 @@
-import {EmailMessage} from "cloudflare:email";
-import {createMimeMessage, Mailbox} from "mimetext";
-
 interface Env {
     SEB: SendEmailClient;
     EMAIL_QUEUE: Queue<EmailQueueMessage>;
@@ -16,15 +13,21 @@ interface SendEmailClient {
     send(message: EmailMessage): Promise<void>;
 }
 
+interface MailboxAddress {
+    address: string;
+    name?: string;
+}
+
 interface EmailEnvelope {
-    name: string;
-    email: string;
+    sender: MailboxAddress;
     message: string;
 }
 
 interface EmailQueueMessage {
     type: 'send_contact_email';
     data: EmailEnvelope;
+    sender: MailboxAddress;
+    recipient: MailboxAddress;
     timestamp: number;
 }
 
@@ -90,8 +93,7 @@ export default {
             }
 
             const emailEnvelope: EmailEnvelope = {
-                name: name,
-                email: email,
+                sender: {name, address: email},
                 message: message
             };
 
@@ -99,6 +101,8 @@ export default {
                 await env.EMAIL_QUEUE.send({
                     type: 'send_contact_email',
                     data: emailEnvelope,
+                    sender: {name: env.SENDER_NAME, address: env.SENDER_ADDRESS},
+                    recipient: {address: env.RECIPIENT_ADDRESS},
                     timestamp: Date.now()
                 } as EmailQueueMessage);
 
@@ -111,56 +115,5 @@ export default {
         }
 
         return new Response("Not Found", {status: 404});
-    },
-    async queue(batch: MessageBatch<EmailQueueMessage>, env: Env) {
-        const baseDelaySeconds = env.BASE_DELAY_SECONDS || 30;
-
-        for (const it of batch.messages) {
-            const envelope = it.body.data;
-            const attemptNum = it.attempts;
-
-            const mimeMsg = createMimeMessage();
-            mimeMsg.setSender({addr: env.SENDER_ADDRESS, name: env.SENDER_NAME});
-            mimeMsg.setRecipient(env.RECIPIENT_ADDRESS);
-            mimeMsg.setHeader("Reply-To", new Mailbox({addr: envelope.email, name: envelope.name}));
-            mimeMsg.setSubject("Submission");
-            mimeMsg.addMessage({
-                contentType: "text/plain",
-                data: `${envelope.name}\n${envelope.email}\n\n${envelope.message}`
-            });
-
-            const emailMessage = new EmailMessage(
-                env.SENDER_ADDRESS,
-                env.RECIPIENT_ADDRESS,
-                mimeMsg.asRaw()
-            );
-
-            console.log(`Sending email.\nTo: ${envelope.email}\nAttempt: ${attemptNum}`);
-
-            try {
-                await env.SEB.send(emailMessage);
-
-                console.log("Email sent successfully.");
-
-                it.ack();
-            } catch (error: any) {
-                const errorMessage = (error as Error).message || String(error);
-                const status = error.status || error.code;
-
-                console.log(`Error sending email.\nError: ${errorMessage}\nStatus: ${status}`);
-
-                if (![421, 450, 503, 504].includes(status)) {
-                    console.error("Email send failed - PERMANENT.");
-
-                    throw error;
-                } else {
-                    const totalDelaySeconds = Math.ceil(baseDelaySeconds * Math.pow(2, attemptNum - 1) + Math.random() * 5);
-
-                    console.warn(`Transient error.\nRetrying in: ${totalDelaySeconds}s`);
-
-                    it.retry({delaySeconds: totalDelaySeconds});
-                }
-            }
-        }
     }
 } as ExportedHandler<Env>;
