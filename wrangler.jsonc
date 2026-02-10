@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vo-web",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "!/api/docs/*"
+    ],
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "send_email": [
+    {
+      "name": "SEB",
+      "destination_address": "hey@ib.actor"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "EMAIL_QUEUE",
+        "queue": "contact-email-queue"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "contact-email-queue",
+        "max_retries": 5,
+        "dead_letter_queue": "contact-email-dlq"
+      },
+      {
+        "queue": "contact-email-dlq"
+      }
+    ]
+  },
+  "vars": {
+    "API_HOST": "ib.actor",
+    "SENDER_ADDRESS": "contact@mail.ib.actor",
+    "SENDER_NAME": "Contact Form",
+    "RECIPIENT_ADDRESS": "hey@ib.actor",
+    "CONTACT_PATH": "/api/contact",
+    "BASE_DELAY_SECONDS": 30
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
