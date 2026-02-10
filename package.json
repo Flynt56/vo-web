@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.0",
-    "astro": "^5.17.1"
+    "astro": "^5.17.1",
+    "cloudflare": "^5.2.0",
+    "mimetext": "^3.0.28",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260210.0",
